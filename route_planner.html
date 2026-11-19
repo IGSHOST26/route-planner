@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NJ Route Planner</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --bg:#f4f6f8; --panel:#ffffff; --ink:#16202a; --muted:#5a6773; --line:#dce2e8; --soft:#eef2f6;
+  --accent:#0a58ff; --accent-ink:#ffffff;
+  --am:#9a5b00; --am-bg:#fdf0cf; --pm:#1b4fd6; --pm-bg:#e0e9ff;
+  --ok:#17803d; --warn:#a15c00; --bad:#b42318; --bad-bg:#fde8e6;
+  --font: system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0e1319; --panel:#161d25; --ink:#e8edf2; --muted:#93a1ae; --line:#2a3440; --soft:#1d2630;
+    --accent:#5b9bff; --accent-ink:#06142b;
+    --am:#f6c350; --am-bg:#3a2d0c; --pm:#8db5ff; --pm-bg:#15284d;
+    --ok:#4ade80; --warn:#f6c350; --bad:#ff8a80; --bad-bg:#3d1816;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--font);padding:20px max(16px,env(safe-area-inset-left,0px)) 48px}
+h1{font-size:22px;margin:0;letter-spacing:-.01em}
+h2{font-size:13px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:650}
+h3{margin:0;font-size:16px}
+.top{max-width:1320px;margin:0 auto 18px;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px}
+.sub{margin:0;color:var(--muted)}
+.layout{max-width:1320px;margin:0 auto;display:grid;grid-template-columns:minmax(340px,460px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+textarea,input[type=text],input[type=password],input[type=number],input[type=time],select{
+  width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+textarea{resize:vertical;min-height:110px;font-size:14px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:inherit;cursor:pointer;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 13px}
+button:hover{background:var(--soft)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:650}
+button.primary:hover{filter:brightness(1.07)}
+button:disabled{opacity:.6;cursor:default}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.btns .grow{flex:1}
+.hint{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+.jobs-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;margin:16px 0 6px;font-size:13px;color:var(--muted)}
+#jobs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:420px;overflow:auto}
+.job{display:grid;grid-template-columns:34px minmax(0,1fr) 28px;gap:8px;align-items:start;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.job .num{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:650;padding-top:7px;font-size:13px}
+.job input.addr{padding:6px 8px;font-size:14px}
+.job .lbl{display:block;font-size:12.5px;color:var(--muted);margin-top:3px}
+.job .stat{display:block;font-size:12px;margin-top:3px;color:var(--muted);overflow-wrap:anywhere}
+.stat.ok{color:var(--ok)} .stat.warn{color:var(--warn)} .stat.fail{color:var(--bad)}
+.hstat{font-size:12px;margin-top:4px;color:var(--muted);overflow-wrap:anywhere}
+.hstat.ok{color:var(--ok)} .hstat.fail{color:var(--bad)}
+.x{border:0;background:transparent;color:var(--muted);font-size:20px;line-height:1;padding:3px 6px}
+.fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.fields .wide{grid-column:1/-1}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;color:var(--ink);margin:0}
+.check input{width:auto}
+details.adv{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+details.adv summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:600}
+details.adv .fields{margin-top:10px}
+#msg{margin-top:10px;font-size:14px}
+#msg.bad{color:var(--bad)} #msg.warn{color:var(--warn)}
+.empty{color:var(--muted)}
+.empty p{margin:6px 0 0;max-width:60ch}
+.sumline{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:15px}
+.pill{padding:3px 10px;border-radius:99px;font-size:12.5px;font-weight:650}
+.pill.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.pill.bad{background:var(--bad-bg);color:var(--bad)}
+.warns{margin:10px 0 0;padding:0;list-style:none;color:var(--bad);font-size:14px}
+#map{height:380px;border-radius:8px;border:1px solid var(--line);background:var(--soft)}
+.nomap{padding:20px;color:var(--muted)}
+.pin{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;color:#fff;font:700 12px var(--font);border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.pin.start{width:auto;padding:0 10px;border-radius:13px;background:#111}
+.routes{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.route{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--rc);border-radius:10px;padding:14px;min-width:0}
+.route header{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+.route .meta{font-size:13px;color:var(--muted)}
+.route a.maps{font-size:13px;color:var(--accent);text-decoration:none;font-weight:600}
+.route a.maps:hover{text-decoration:underline}
+.stops{list-style:none;margin:0;padding:0}
+.stops li{display:grid;grid-template-columns:74px 34px minmax(0,1fr) auto;gap:8px;padding:6px 0;align-items:start}
+.stops li.leg{grid-template-columns:74px 1fr;color:var(--muted);font-size:12.5px;padding:2px 0}
+.stops li.leg span:first-child{text-align:right;padding-right:2px}
+.stops .time{font-variant-numeric:tabular-nums;font-weight:650;font-size:14px}
+.stops .jn{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums;padding-top:1px}
+.stops .ad{overflow-wrap:anywhere;font-size:14px}
+.stops .ad small{display:block;color:var(--muted);font-size:12.5px}
+.chip{font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px}
+.chip.AM{background:var(--am-bg);color:var(--am)} .chip.PM{background:var(--pm-bg);color:var(--pm)}
+.late{color:var(--bad);font-weight:650}
+details.mxbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px}
+details.mxbox summary{cursor:pointer;font-weight:650}
+.mxwrap{overflow:auto;margin-top:12px;max-height:440px}
+table.mx{border-collapse:separate;border-spacing:0;font-size:12.5px;font-variant-numeric:tabular-nums}
+table.mx th,table.mx td{padding:4px 7px;text-align:right;min-width:36px;border-bottom:1px solid var(--line)}
+table.mx th{position:sticky;top:0;background:var(--panel);color:var(--muted);font-weight:650;z-index:1}
+table.mx th:first-child{left:0;z-index:2;text-align:left}
+table.mx tbody th{position:sticky;left:0;top:auto;text-align:left;z-index:1}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+.resultbar{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center}
+.foot{max-width:1320px;margin:22px auto 0;color:var(--muted);font-size:12.5px}
+@media (prefers-reduced-motion:no-preference){button{transition:background .12s}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>NJ Route Planner</h1>
+  <p class="sub">Paste the day's jobs and get one route per tech: farthest job first, back at the shop at the end of the day.</p>
+</header>
+
+<main class="layout">
+<div class="col">
+  <section class="card" aria-labelledby="hJobs">
+    <h2 id="hJobs">Jobs</h2>
+    <label for="paste">Paste addresses, one per line.</label>
+    <textarea id="paste" spellcheck="false" placeholder="12 Main St, Edison, NJ 08817
+45 Oak Ave, Metuchen, NJ 08840
+Smith | 78 Elm St, Woodbridge, NJ
+(Rows copied from a spreadsheet work too: name, address)"></textarea>
+    <div class="btns">
+      <button class="primary" id="add" type="button">Add jobs</button>
+    </div>
+    <div class="jobs-head"><span id="counts">No jobs yet</span><button id="clear" type="button" style="padding:3px 10px;font-size:13px">Clear all</button></div>
+    <ul id="jobs"></ul>
+  </section>
+
+  <section class="card" aria-labelledby="hLim">
+    <h2 id="hLim">Limits</h2>
+    <div class="fields">
+      <div><label for="max">Max jobs per route</label><input id="max" type="number" min="1" max="30" value="6"></div>
+      <div><label for="routes">Number of routes</label><input id="routes" type="number" min="1" max="30" placeholder="Auto"></div>
+      <div><label for="service">Minutes per job</label><input id="service" type="number" min="0" max="240" value="60"></div>
+      <div><label for="buffer">Traffic buffer (%)</label><input id="buffer" type="number" min="0" max="100" value="20"></div>
+      <div class="wide"><label for="start">Home base (shop): every route starts and ends here</label><input id="start" type="text" readonly><div class="hstat" id="homeStat"></div></div>
+      <div><label for="dayStart">Leave the shop at</label><input id="dayStart" type="time" value="08:00"></div>
+    </div>
+    <p class="hint">Each route is one tech's day: leave the shop, farthest job first, work back, and end at the shop. AM or PM is assigned from the arrival time (before noon is AM). A job can't start after 4:00 PM, so on Auto the planner adds routes when a day won't fit. Leave "Number of routes" blank for the fewest.</p>
+    <details class="adv"><summary>Advanced: drive-time source</summary>
+      <div class="fields">
+        <div class="wide"><label for="engine">Where drive times come from</label>
+          <select id="engine"><option value="osrm">OSRM public server (free, no key)</option><option value="ors">OpenRouteService (free key)</option></select></div>
+        <div class="wide" id="osrmRow"><label for="osrmUrl">OSRM server address (leave blank for the public one)</label><input id="osrmUrl" type="text" placeholder="https://router.project-osrm.org"></div>
+        <div class="wide" id="orsRow" hidden><label for="orsKey">OpenRouteService API key</label><input id="orsKey" type="password" autocomplete="off" placeholder="Paste your key"></div>
+      </div>
+      <p class="hint">The key is stored only in this browser.</p>
+    </details>
+    <div class="btns"><button class="primary" id="go" type="button" style="flex:1;padding:11px">Optimize routes</button></div>
+    <div id="msg" role="status"></div>
+  </section>
+</div>
+
+<div class="col">
+  <section class="card empty" id="empty">
+    <h2>Routes</h2>
+    <p>Add jobs on the left and press Optimize. You'll get each route in driving order with arrival times, a map, and the drive time between every pair of jobs.</p>
+    <p>Drive times are average road times plus your traffic buffer, not live traffic.</p>
+  </section>
+  <div class="col" id="results" hidden>
+    <section class="card">
+      <div class="resultbar"><div class="sumline" id="summary"></div>
+        <div class="acts"><button id="copy" type="button">Copy schedule</button><button id="csv" type="button">Download CSV</button><button id="clearRoutes" type="button">Clear routes &amp; map</button></div></div>
+      <ul class="warns" id="warns"></ul>
+    </section>
+    <section class="card" style="padding:10px"><div id="map" aria-label="Map of routes"></div></section>
+    <div class="routes" id="routeList"></div>
+    <details class="mxbox"><summary>Drive times between jobs (minutes)</summary>
+      <p class="hint">Read across: from the row job to the column job. Includes the traffic buffer.</p>
+      <div class="mxwrap" id="matrix"></div></details>
+  </div>
+</div>
+</main>
+<p class="foot">Jobs and settings stay in this browser. Addresses are sent to the U.S. Census geocoder (with OpenStreetMap as a backup) and job coordinates to the drive-time service you choose. Map data &copy; OpenStreetMap contributors.</p>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ==== SOLVER START (pure logic, no page or network access) ====
+const NOON = 12 * 60;      // customers hear "AM" if the tech arrives before noon, "PM" from noon on
+const DAY_END = 16 * 60;   // a job must start by 4:00 PM
+const LATE_W = 1000;       // cost per minute a job would start after 4:00 PM
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function shuffle(arr, rng) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } }
+const nowMs = () => Date.now();
+
+// One tech per route. The tech leaves the shop once, drives the stops from the one farthest from the
+// shop (by drive time) to the nearest in one continuous run, and ends the day back at the shop.
+// The visiting order is fixed by distance, so the optimizer decides which stops share a route.
+// Stops are indexes 0..n-1 and the shop is index n in the drive-time matrix T (minutes).
+class Plan {
+  constructor(T, service, depot, t0, cap) {
+    this.T = T; this.service = service; this.depot = depot; this.t0 = t0; this.cap = cap;
+    this.n = depot;
+    this.dist = Array.from({length: depot}, (_, j) => T[j][depot]);
+    this.memo = new Map();
+  }
+  order(list) { return list.slice().sort((a, b) => this.dist[b] - this.dist[a] || a - b); }
+  evaluate(list, detail) {
+    if (!list.length) return {drive: 0, late: 0, finish: this.t0, rows: [], leave: null};
+    const T = this.T, dep = this.depot;
+    let t = this.t0, prev = dep, drive = 0, late = 0;
+    const rows = [];
+    for (const j of this.order(list)) {
+      const d = T[prev][j], arrive = t + d, l = arrive > DAY_END ? arrive - DAY_END : 0;
+      late += l;
+      if (detail) rows.push({j, drive: d, arrive, depart: arrive + this.service, late: l});
+      drive += d; t = arrive + this.service; prev = j;
+    }
+    const back = T[prev][dep];
+    drive += back;
+    return {drive, late, finish: t + back, rows, leave: this.t0};
+  }
+  cost(list) {
+    const key = list.slice().sort((a, b) => a - b).join(',');
+    let v = this.memo.get(key);
+    if (v === undefined) {
+      if (this.memo.size > 400000) this.memo.clear();
+      const e = this.evaluate(list, false);
+      v = e.drive + LATE_W * e.late;
+      this.memo.set(key, v);
+    }
+    return v;
+  }
+}
+
+function construct(plan, R, rng) {
+  const routes = Array.from({length: R}, () => []);
+  const order = [...Array(plan.n).keys()]; shuffle(order, rng);
+  for (const j of order) {
+    let best = null;
+    routes.forEach((rt, r) => {
+      if (rt.length >= plan.cap) return;
+      const d = plan.cost(rt.concat([j])) - plan.cost(rt);
+      if (best === null || d < best.d) best = {d, r};
+    });
+    routes[best.r].push(j);
+  }
+  return routes;
+}
+
+function improve(plan, routes, rng, deadline) {
+  const eps = 1e-6;
+  const cost = routes.map(rt => plan.cost(rt));
+  let improved = true;
+  while (improved && nowMs() < deadline) {
+    improved = false;
+    // 1) move one job to a different route
+    const order = [...Array(plan.n).keys()]; shuffle(order, rng);
+    for (const j of order) {
+      if (nowMs() > deadline) break;
+      const r0 = routes.findIndex(rt => rt.includes(j));
+      const rem = routes[r0].filter(x => x !== j), cRem = plan.cost(rem);
+      let best = {delta: 0, t: -1, nl: null, c: 0};
+      routes.forEach((rt, t) => {
+        if (t === r0 || rt.length >= plan.cap) return;
+        const nl = rt.concat([j]), c = plan.cost(nl), delta = (cRem - cost[r0]) + (c - cost[t]);
+        if (delta < best.delta - eps) best = {delta, t, nl, c};
+      });
+      if (best.t >= 0) { routes[r0] = rem; cost[r0] = cRem; routes[best.t] = best.nl; cost[best.t] = best.c; improved = true; }
+    }
+    // 2) swap two jobs between routes
+    for (let r1 = 0; r1 < routes.length; r1++) for (let r2 = r1 + 1; r2 < routes.length; r2++)
+      for (let i = 0; i < routes[r1].length; i++) for (let k = 0; k < routes[r2].length; k++) {
+        const a = routes[r1].slice(), b = routes[r2].slice();
+        [a[i], b[k]] = [b[k], a[i]];
+        const c1 = plan.cost(a), c2 = plan.cost(b);
+        if (c1 + c2 < cost[r1] + cost[r2] - eps) { routes[r1] = a; routes[r2] = b; cost[r1] = c1; cost[r2] = c2; improved = true; }
+      }
+  }
+}
+
+async function solveFixed(plan, R, rng, seconds) {
+  const deadline = nowMs() + seconds * 1000; let best = null, reps = 0;
+  for (;;) {
+    const routes = construct(plan, R, rng); improve(plan, routes, rng, deadline);
+    const c = routes.reduce((a, r) => a + plan.cost(r), 0);
+    if (best === null || c < best.c - 1e-9) best = {c, routes: routes.map(r => r.slice())};
+    reps++;
+    await new Promise(res => setTimeout(res, 0)); // let the page breathe
+    if (nowMs() >= deadline || reps >= 60) break;
+  }
+  return best;
+}
+const totalLate = (plan, routes) => routes.reduce((a, r) => a + plan.evaluate(r, false).late, 0);
+
+function capacityError(n, cap, routesReq) {
+  if (cap < 1) return 'Max jobs per route must be at least 1.';
+  if (routesReq && routesReq * cap < n) return routesReq + ' route(s) x ' + cap + ' jobs = ' + (routesReq * cap) + ', which is fewer than the ' + n + ' jobs. Raise one of them.';
+  return null;
+}
+
+// o: {stops:[{id}], T (minutes incl. traffic buffer; the stops first, the shop last), cap, routesReq, service, t0}
+async function optimizeCore(o) {
+  const n = o.stops.length, T = o.T;
+  const plan = new Plan(T, o.service, n, o.t0, o.cap);
+  const rng = mulberry32(12345);
+  const rmin = Math.ceil(n / o.cap);
+  let chosen = null;
+  if (o.routesReq) chosen = (await solveFixed(plan, o.routesReq, rng, 2.5)).routes;
+  else {
+    let fallback = null;
+    for (let R = rmin; R <= Math.min(n, rmin + 6); R++) {
+      const res = await solveFixed(plan, R, rng, 0.9);
+      if (fallback === null || res.c < fallback.c) fallback = res;
+      if (totalLate(plan, res.routes) < 1e-6) { chosen = res.routes; break; }
+    }
+    if (!chosen) chosen = fallback.routes;
+  }
+  const r1 = x => Math.round(x * 10) / 10;
+  const warnings = [], outRoutes = []; let lateJobs = 0;
+  for (const rt of chosen) {
+    if (!rt.length) continue;
+    const e = plan.evaluate(rt, true);
+    const stopsOut = e.rows.map(r => {
+      if (r.late > 0.5) lateJobs++;
+      return {id: o.stops[r.j].id, slot: r.arrive < NOON ? 'AM' : 'PM', drive: r1(r.drive), arrive: r1(r.arrive), start: r1(r.arrive), depart: r1(r.depart), late: r1(r.late), away: r1(T[r.j][n])};
+    });
+    const last = e.rows[e.rows.length - 1].j;
+    outRoutes.push({jobs: stopsOut.length, leave: r1(e.leave), back: {drive: r1(T[last][n]), arrive: r1(e.finish)}, drive: r1(e.drive), finish: r1(e.finish), stops: stopsOut});
+  }
+  if (lateJobs) warnings.push(lateJobs + ' job(s) cannot start by 4:00 PM with these limits. Add a route, raise the jobs-per-route limit, or shorten the minutes per job.');
+  return {
+    routes: outRoutes, warnings,
+    totalDrive: r1(outRoutes.reduce((a, r) => a + r.drive, 0)),
+    matrix: {ids: o.stops.map(s => s.id), hasStart: true, minutes: T.map(row => row.map(v => Math.round(v)))}
+  };
+}
+// ==== SOLVER END ====
+</script>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const COLORS = ['#2563eb','#dc2626','#16a34a','#d97706','#7c3aed','#0891b2','#db2777','#4b5563'];
+const MAX_JOBS = 90;
+const HOME_BASE = '1500 Campus Drive, Morganville, NJ 07751'; // the shop: every route starts and ends here. Edit this line to change it.
+let homeAddr = HOME_BASE; // only differs if the lookup failed and the shop address was corrected on this computer
+try { homeAddr = localStorage.getItem('njrp.home') || HOME_BASE; } catch (e) {}
+
+let rows = [], seq = 0;
+let result = null, lastRows = [], lastDepot = null, lastPayload = null, depotGeo = null;
+let map = null, layer = null;
+
+/* ---------- helpers ---------- */
+const fmt = m => { m = Math.round(m); let h = Math.floor(m / 60) % 24; const mm = m % 60; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(mm).padStart(2, '0') + ' ' + ap; };
+const dur = m => { m = Math.round(m); return m < 60 ? m + ' min' : Math.floor(m / 60) + 'h ' + String(m % 60).padStart(2, '0') + 'm'; };
+function setMsg(t, kind) { const m = $('msg'); m.textContent = t || ''; m.className = kind || ''; }
+
+/* ---------- geocoding (runs in the browser) ---------- */
+let geoCache = {};
+try { geoCache = JSON.parse(localStorage.getItem('njrp.geo.v1') || '{}'); } catch (e) {}
+const saveGeo = () => { try { localStorage.setItem('njrp.geo.v1', JSON.stringify(geoCache)); } catch (e) {} };
+const withState = a => /\b(NJ|N\.J\.|New Jersey)\b/i.test(a) ? a : a.replace(/[,\s]+$/, '') + ', NJ';
+const inNJ = (lat, lon) => lat >= 38.85 && lat <= 41.40 && lon >= -75.60 && lon <= -73.85;
+
+// The Census geocoder does not allow normal cross-site requests, so it is called with JSONP.
+function jsonp(url, timeout) {
+  return new Promise((resolve, reject) => {
+    const cb = 'njrp_cb_' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, timeout || 15000);
+    function cleanup() { clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = d => { cleanup(); resolve(d); };
+    s.onerror = () => { cleanup(); reject(new Error('network')); };
+    s.src = url + '&callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+async function geocodeCensus(q) {
+  const d = await jsonp('https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?' + new URLSearchParams({address: q, benchmark: 'Public_AR_Current', format: 'jsonp'}).toString());
+  const m = (d && d.result && d.result.addressMatches) || [];
+  if (!m.length) return null;
+  return {lat: m[0].coordinates.y, lon: m[0].coordinates.x, matched: m[0].matchedAddress, source: 'census', approx: false};
+}
+let nomChain = Promise.resolve(), nomLast = 0;
+function nomThrottle() {
+  const p = nomChain.then(async () => { const w = 1100 - (Date.now() - nomLast); if (w > 0) await new Promise(r => setTimeout(r, w)); nomLast = Date.now(); });
+  nomChain = p.catch(() => {}); return p;
+}
+async function geocodeNominatim(q) {
+  await nomThrottle();
+  const r = await fetch('https://nominatim.openstreetmap.org/search?' + new URLSearchParams({q, format: 'jsonv2', limit: '1', addressdetails: '1', countrycodes: 'us'}));
+  if (!r.ok) throw new Error('nominatim ' + r.status);
+  const d = await r.json(); if (!d.length) return null;
+  const x = d[0];
+  return {lat: parseFloat(x.lat), lon: parseFloat(x.lon), matched: x.display_name, source: 'osm', approx: !(x.address && x.address.house_number)};
+}
+const COORD_RE = /^\s*(-?\d{1,3}\.\d+)\s*[,\s]\s*(-?\d{1,3}\.\d+)\s*$/;
+// NJ postal towns (Morganville, Whiting, Iselin...) often differ from the municipality name the
+// geocoders use, so if the full address finds nothing, retry with just street + ZIP.
+function lookupVariants(q) {
+  const out = [q];
+  const zip = (q.match(/\b(\d{5})(?:-\d{4})?\b/) || [])[1];
+  if (zip) out.push(q.split(',')[0].trim() + ', NJ ' + zip);
+  return [...new Set(out)];
+}
+async function geocode(addr) {
+  addr = (addr || '').trim();
+  if (!addr) return {ok: false, error: 'Empty address'};
+  const cm = addr.match(COORD_RE); // "40.3501, -74.2703" (copied from Google Maps) works as an address
+  if (cm) {
+    const lat = parseFloat(cm[1]), lon = parseFloat(cm[2]);
+    if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return {ok: true, lat, lon, matched: 'Coordinates ' + lat.toFixed(5) + ', ' + lon.toFixed(5), source: 'coords', approx: false, inNJ: inNJ(lat, lon)};
+  }
+  const q = withState(addr), key = q.toLowerCase().replace(/\s+/g, ' ');
+  if (geoCache[key]) return Object.assign({ok: true}, geoCache[key]);
+  const vs = lookupVariants(q);
+  let res = null, failures = 0, tried = 0;
+  outer:
+  for (const fn of [geocodeCensus, geocodeNominatim]) {
+    for (const v of vs) {
+      tried++;
+      try { res = await fn(v); } catch (e) { failures++; res = null; }
+      if (res) break outer;
+    }
+  }
+  if (!res) return {ok: false, error: failures === tried ? 'Could not reach the address lookup service' : 'No match found. Check the street and town, or paste coordinates like 40.35, -74.27'};
+  res.inNJ = inNJ(res.lat, res.lon);
+  geoCache[key] = res; saveGeo();
+  return Object.assign({ok: true}, res);
+}
+
+/* ---------- drive times and road geometry ---------- */
+async function driveMatrix(points, cfg) {
+  if (cfg.engine === 'ors') {
+    if (!cfg.orsKey) throw new Error('Paste your OpenRouteService key under "Advanced: drive-time source".');
+    let r;
+    try { r = await fetch('https://api.openrouteservice.org/v2/matrix/driving-car', {method: 'POST', headers: {'Authorization': cfg.orsKey, 'Content-Type': 'application/json'}, body: JSON.stringify({locations: points.map(p => [p[1], p[0]]), metrics: ['duration']})}); }
+    catch (e) { throw new Error('Could not reach OpenRouteService. Check your internet connection.'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error('OpenRouteService: ' + ((d.error && (d.error.message || d.error)) || r.status));
+    return d.durations.map(row => row.map(v => v == null ? null : v / 60));
+  }
+  const base = (cfg.osrmUrl || 'https://router.project-osrm.org').trim().replace(/\/+$/, '');
+  const coords = points.map(p => p[1].toFixed(6) + ',' + p[0].toFixed(6)).join(';');
+  let r;
+  try { r = await fetch(base + '/table/v1/driving/' + coords + '?annotations=duration'); }
+  catch (e) { throw new Error('Could not reach the drive-time service. Check your internet connection, or switch to OpenRouteService under "Advanced".'); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.code !== 'Ok') throw new Error('Drive-time service error: ' + (d.message || d.code || r.status));
+  return d.durations.map(row => row.map(v => v == null ? null : v / 60));
+}
+async function roadLine(points, cfg) {
+  try {
+    if (cfg.engine === 'ors') {
+      const r = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson', {method: 'POST', headers: {'Authorization': cfg.orsKey, 'Content-Type': 'application/json'}, body: JSON.stringify({coordinates: points.map(p => [p[1], p[0]])})});
+      const d = await r.json(); return d.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    }
+    const base = (cfg.osrmUrl || 'https://router.project-osrm.org').trim().replace(/\/+$/, '');
+    const r = await fetch(base + '/route/v1/driving/' + points.map(p => p[1].toFixed(6) + ',' + p[0].toFixed(6)).join(';') + '?overview=full&geometries=geojson');
+    const d = await r.json(); if (d.code !== 'Ok') return [];
+    return d.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+  } catch (e) { return []; }
+}
+
+/* ---------- settings + persistence ---------- */
+function readSettings() {
+  const dsv = ($('dayStart').value || '08:00').split(':');
+  return {
+    max: parseInt($('max').value, 10) || 0,
+    routes: parseInt($('routes').value, 10) || null,
+    service: parseFloat($('service').value) || 0,
+    buffer: parseFloat($('buffer').value) || 0,
+    start: $('start').value || '',
+    ret: true,
+    dayStart: (parseInt(dsv[0], 10) || 0) * 60 + (parseInt(dsv[1], 10) || 0),
+    dayStartRaw: $('dayStart').value || '08:00',
+    engine: $('engine').value, orsKey: $('orsKey').value.trim(), osrmUrl: $('osrmUrl').value.trim()
+  };
+}
+function applySettings(s) {
+  if (s.max) $('max').value = s.max;
+  $('routes').value = s.routes || '';
+  if (s.service != null) $('service').value = s.service;
+  if (s.buffer != null) $('buffer').value = s.buffer;
+  $('start').value = homeAddr;
+  if (s.dayStartRaw) $('dayStart').value = s.dayStartRaw;
+  if (s.engine) $('engine').value = s.engine;
+  $('orsKey').value = s.orsKey || ''; $('osrmUrl').value = s.osrmUrl || '';
+  toggleEngine();
+}
+function toggleEngine() { const o = $('engine').value === 'ors'; $('orsRow').hidden = !o; $('osrmRow').hidden = o; }
+function save() { try { localStorage.setItem('njrp.v1', JSON.stringify({rows, seq, s: readSettings()})); } catch (e) {} }
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem('njrp.v1') || 'null');
+    if (!d) return;
+    rows = d.rows || []; seq = d.seq || 0; applySettings(d.s || {});
+    rows.forEach(r => { if (r.st === 'busy' || r.st === 'pending') r.st = 'pending'; });
+  } catch (e) {}
+}
+
+/* ---------- parsing pasted jobs ---------- */
+const SLOT_CELL = /^\(?(am|a\.m\.|morning|pm|p\.m\.|afternoon)\)?$/i;
+const SLOT_TAIL = /[\s,;|-]+\(?(am|a\.m\.|morning|pm|p\.m\.|afternoon)\)?\s*$/i;
+const isAM = s => /^\(?(am|a\.m\.|morning)\)?$/i.test(s.trim());
+function parseLines(text, def) {
+  const out = [];
+  for (let line of text.split(/\r?\n/)) {
+    line = line.trim();
+    if (!line) continue;
+    let slot = null, label = '', address = '';
+    const cells = (line.includes('\t') ? line.split('\t') : line.includes('|') ? line.split('|') : [line]).map(c => c.trim()).filter(Boolean);
+    const si = cells.findIndex(c => SLOT_CELL.test(c));
+    if (si >= 0) { slot = isAM(cells[si]) ? 'AM' : 'PM'; cells.splice(si, 1); }
+    if (!cells.length) continue;
+    let ai = 0, bestScore = -1;
+    cells.forEach((c, i) => { const sc = (/\d/.test(c) ? 1000 : 0) + c.length; if (sc > bestScore) { bestScore = sc; ai = i; } });
+    address = cells[ai];
+    label = cells.filter((_, i) => i !== ai).join(' · ');
+    if (slot === null) {
+      const m = address.match(SLOT_TAIL);
+      if (m) { slot = isAM(m[1]) ? 'AM' : 'PM'; address = address.slice(0, m.index).trim(); }
+    }
+    if (address) out.push({address, label}); // a typed AM/PM is dropped: AM or PM is assigned from the arrival time
+  }
+  return out;
+}
+
+/* ---------- geocoding queue ---------- */
+const queue = []; let active = 0; const waiters = [];
+function enqueue(r) { r.st = 'pending'; if (!queue.includes(r)) queue.push(r); paintRow(r); pump(); }
+function pump() {
+  while (active < 3 && queue.length) {
+    const r = queue.shift(); active++;
+    locate(r).finally(() => { active--; pump(); if (!active && !queue.length) waiters.splice(0).forEach(f => f()); });
+  }
+}
+const idle = () => (!active && !queue.length) ? Promise.resolve() : new Promise(res => waiters.push(res));
+async function locate(r) {
+  r.st = 'busy'; paintRow(r);
+  const addr = r.address;
+  try {
+    const res = await geocode(addr);
+    if (r.address !== addr) return;
+    if (res.ok) {
+      r.lat = res.lat; r.lon = res.lon; r.matched = res.matched; r.note = '';
+      if (res.inNJ === false) { r.st = 'warn'; r.note = 'Outside New Jersey, check the address'; }
+      else if (res.approx) { r.st = 'warn'; r.note = 'Approximate match, street number not found'; }
+      else r.st = 'ok';
+    } else { r.st = 'fail'; r.note = res.error || 'Not found'; r.lat = r.lon = null; }
+  } catch (e) { r.st = 'fail'; r.note = 'Lookup failed'; r.lat = r.lon = null; }
+  paintRow(r); save(); counts();
+}
+
+/* ---------- job list ---------- */
+function statHTML(r) {
+  switch (r.st) {
+    case 'ok': return '✓ ' + esc(r.matched);
+    case 'warn': return '⚠ ' + esc(r.note) + (r.matched ? ': ' + esc(r.matched) : '');
+    case 'fail': return '✕ ' + esc(r.note);
+    case 'busy': return 'Locating…';
+    default: return 'Waiting to locate…';
+  }
+}
+function rowHTML(r, i) {
+  return '<li class="job" data-uid="' + r.uid + '"><span class="num">#' + (i + 1) + '</span>' +
+    '<div><input class="addr" type="text" aria-label="Address for job ' + (i + 1) + '" value="' + esc(r.address) + '">' +
+    (r.label ? '<span class="lbl">' + esc(r.label) + '</span>' : '') +
+    '<span class="stat ' + r.st + '" data-stat>' + statHTML(r) + '</span></div>' +
+    '<button class="x" type="button" data-del aria-label="Remove job ' + (i + 1) + '">×</button></li>';
+}
+function renderJobs() { $('jobs').innerHTML = rows.map(rowHTML).join(''); counts(); }
+function paintRow(r) {
+  const li = $('jobs').querySelector('[data-uid="' + r.uid + '"]');
+  if (!li) return;
+  const s = li.querySelector('[data-stat]'); s.className = 'stat ' + r.st; s.innerHTML = statHTML(r);
+}
+function counts() {
+  const left = rows.filter(r => r.st === 'pending' || r.st === 'busy').length;
+  const bad = rows.filter(r => r.st === 'fail').length;
+  let t = rows.length ? rows.length + ' job' + (rows.length > 1 ? 's' : '') : 'No jobs yet';
+  if (left) t += ' · locating ' + left + '…'; else if (bad) t += ' · ' + bad + ' not found';
+  $('counts').textContent = t;
+}
+function addRows(list) {
+  list.forEach(p => { rows.push({uid: ++seq, address: p.address, label: p.label, st: 'pending', lat: null, lon: null, matched: '', note: ''}); });
+  renderJobs(); rows.filter(r => r.st === 'pending').forEach(enqueue); save();
+}
+$('add').onclick = () => { const l = parseLines($('paste').value); if (!l.length) { setMsg('Paste at least one address first.', 'warn'); return; } setMsg(''); addRows(l); $('paste').value = ''; };
+$('clear').onclick = () => { rows = []; queue.length = 0; renderJobs(); save(); };
+$('jobs').addEventListener('click', e => {
+  const li = e.target.closest('.job'); if (!li) return;
+  const r = rows.find(x => x.uid == li.dataset.uid); if (!r) return;
+  if (e.target.matches('[data-del]')) { rows = rows.filter(x => x !== r); renderJobs(); save(); }
+});
+$('jobs').addEventListener('change', e => {
+  if (!e.target.matches('.addr')) return;
+  const li = e.target.closest('.job'); const r = rows.find(x => x.uid == li.dataset.uid); if (!r) return;
+  const v = e.target.value.trim();
+  if (!v) { rows = rows.filter(x => x !== r); renderJobs(); save(); return; }
+  if (v !== r.address) { r.address = v; enqueue(r); save(); }
+});
+['max','routes','service','buffer','dayStart','engine','orsKey','osrmUrl'].forEach(id => $(id).addEventListener('change', save));
+$('engine').addEventListener('change', toggleEngine);
+
+/* ---------- optimize ---------- */
+async function go() {
+  setMsg('');
+  if (!rows.length) { setMsg('Add at least one job first.', 'bad'); return; }
+  const btn = $('go'); btn.disabled = true; btn.textContent = 'Optimizing…';
+  try {
+    rows.filter(r => r.st === 'pending').forEach(enqueue);
+    await idle();
+    const bad = rows.map((r, i) => [r, i]).filter(([r]) => r.st === 'fail' || r.lat == null);
+    if (bad.length) { setMsg('Fix or remove ' + bad.length + ' address' + (bad.length > 1 ? 'es' : '') + ' first: ' + bad.map(([, i]) => '#' + (i + 1)).join(', ') + '.', 'bad'); return; }
+    if (rows.length > MAX_JOBS) { setMsg('Too many jobs (' + rows.length + '). The limit is ' + MAX_JOBS + ' per run.', 'bad'); return; }
+    const s = readSettings(); save();
+    const cErr = capacityError(rows.length, s.max, s.routes);
+    if (cErr) { setMsg(cErr, 'bad'); return; }
+    let depot = null; const st = s.start.trim();
+    if (!st) { setMsg('The shop address is empty. Enter it under Limits first.', 'bad'); return; }
+    if (st) {
+      if (!depotGeo || depotGeo.address !== st) {
+        const g = await geocode(st);
+        if (!g.ok) { setMsg('Could not locate the shop address: ' + g.error, 'bad'); return; }
+        depotGeo = {address: st, lat: g.lat, lon: g.lon, matched: g.matched};
+      }
+      depot = depotGeo;
+    }
+    const snap = rows.map((r, i) => ({id: i + 1, address: r.address, label: r.label, lat: r.lat, lon: r.lon, matched: r.matched}));
+    const pts = snap.map(r => [r.lat, r.lon]); if (depot) pts.push([depot.lat, depot.lon]);
+    const raw = await driveMatrix(pts, s);
+    const f = 1 + s.buffer / 100; let unroutable = 0;
+    const T = raw.map((row, i) => row.map((v, j) => { if (i === j) return 0; if (v == null) { unroutable++; return 600; } return v * f; }));
+    const res = await optimizeCore({stops: snap.map(r => ({id: r.id})), T, cap: s.max, routesReq: s.routes, service: s.service, t0: s.dayStart});
+    if (unroutable) res.warnings.unshift('Some jobs have no road connection to each other and were treated as a 10-hour drive.');
+    result = res; lastRows = snap; lastDepot = depot; lastPayload = {returnHome: s.ret, cfg: s};
+    renderResults();
+    if (rows.some(r => r.st === 'warn')) setMsg('Some addresses are approximate or outside NJ. Check the ⚠ rows.', 'warn');
+  } catch (e) { setMsg(e.message, 'bad'); }
+  finally { btn.disabled = false; btn.textContent = 'Optimize routes'; }
+}
+$('go').onclick = go;
+
+/* ---------- results ---------- */
+const byId = () => Object.fromEntries(lastRows.map(r => [r.id, r]));
+function gmapsLink(rt, B) {
+  const loc = r => r.matched || (r.lat + ',' + r.lon);
+  const stops = rt.stops.map(s => loc(B[s.id]));
+  let o, d, w;
+  if (lastDepot) { const dl = lastDepot.matched; o = dl; d = lastPayload.returnHome ? dl : stops[stops.length - 1]; w = lastPayload.returnHome ? stops : stops.slice(0, -1); }
+  else { o = stops[0]; d = stops[stops.length - 1]; w = stops.slice(1, -1); }
+  return 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + encodeURIComponent(o) + '&destination=' + encodeURIComponent(d) + (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : '');
+}
+function renderResults() {
+  const B = byId(), res = result;
+  $('empty').hidden = true; $('results').hidden = false;
+  const nJobs = res.routes.reduce((a, r) => a + r.stops.length, 0);
+  const lateN = res.routes.reduce((a, r) => a + r.stops.filter(s => s.late > 0.5).length, 0);
+  $('summary').innerHTML = '<strong>' + res.routes.length + ' route' + (res.routes.length > 1 ? 's' : '') + '</strong><span>' + nJobs + ' jobs</span><span><strong>' + dur(res.totalDrive) + '</strong> total driving</span>' +
+    (lateN ? '<span class="pill bad">' + lateN + ' job' + (lateN > 1 ? 's' : '') + ' start after 4:00 PM</span>' : '<span class="pill ok">Every job starts by 4:00 PM</span>');
+  $('warns').innerHTML = res.warnings.map(w => '<li>' + esc(w) + '</li>').join('');
+  $('routeList').innerHTML = res.routes.map((rt, ri) => {
+    const col = COLORS[ri % COLORS.length]; let h = '';
+    const nAM = rt.stops.filter(s => s.slot === 'AM').length, nPM = rt.stops.length - nAM;
+    if (rt.leave != null) h += '<li class="leg"><span class="time" style="font-size:13px">' + fmt(rt.leave) + '</span><span>Leave the shop</span></li>';
+    rt.stops.forEach((s, k) => {
+      const r = B[s.id];
+      if (s.drive > 0.4 || (k === 0 && rt.leave != null)) h += '<li class="leg"><span></span><span>↓ ' + dur(s.drive) + ' drive</span></li>';
+      else if (k > 0) h += '<li class="leg"><span></span><span>↓ same location</span></li>';
+      h += '<li><span class="time">' + fmt(s.start) + '</span><span class="jn">#' + r.id + '</span><div class="ad">' + esc(r.label ? r.label : r.address) + '<small>' + esc(r.label ? r.address : (r.matched || '')) + '</small>' + (s.away != null ? '<small>' + dur(s.away) + ' from the shop</small>' : '') +
+        (s.late > 0.5 ? '<small class="late">Arrives ' + dur(s.late) + ' after the 4:00 PM cutoff</small>' : '') + '</div><span class="chip ' + s.slot + '">' + s.slot + '</span></li>';
+    });
+    if (rt.back) h += '<li class="leg"><span></span><span>↓ ' + dur(rt.back.drive) + ' drive back</span></li><li class="leg"><span class="time" style="font-size:13px">' + fmt(rt.back.arrive) + '</span><span>Back at the shop</span></li>';
+    else h += '<li class="leg"><span class="time" style="font-size:13px">' + fmt(rt.finish) + '</span><span>Last job done</span></li>';
+    return '<article class="route" style="--rc:' + col + '"><header><h3>Route ' + (ri + 1) + '</h3><span class="meta">' + rt.jobs + ' jobs (' + nAM + ' AM, ' + nPM + ' PM) · ' + dur(rt.drive) + ' driving</span><a class="maps" href="' + esc(gmapsLink(rt, B)) + '" target="_blank" rel="noopener">Open in Google Maps</a></header><ol class="stops">' + h + '</ol></article>';
+  }).join('');
+  renderMatrix(); drawMap();
+}
+function renderMatrix() {
+  const mx = result.matrix, B = byId();
+  const names = mx.ids.map(i => '#' + i); if (mx.hasStart) names.push('Shop');
+  const max = Math.max(1, ...mx.minutes.flat());
+  let h = '<table class="mx"><thead><tr><th>From \\ To</th>' + names.map(n => '<th>' + n + '</th>').join('') + '</tr></thead><tbody>';
+  mx.minutes.forEach((row, i) => {
+    h += '<tr><th title="' + esc(i < mx.ids.length ? B[mx.ids[i]].address : 'Shop') + '">' + names[i] + '</th>' + row.map((v, j) => '<td' + (i === j ? ' style="color:var(--muted)">–' : ' style="background:color-mix(in srgb, var(--accent) ' + Math.round(v / max * 45) + '%, transparent)">' + v) + '</td>').join('') + '</tr>';
+  });
+  $('matrix').innerHTML = h + '</tbody></table>';
+}
+function drawMap() {
+  const el = $('map');
+  if (!window.L) { el.innerHTML = '<p class="nomap">Map unavailable: the map library could not be loaded.</p>'; return; }
+  if (!map) { map = L.map('map', {scrollWheelZoom: false}); L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'}).addTo(map); }
+  if (layer) layer.remove();
+  const lg = layer = L.layerGroup().addTo(map), B = byId(), all = [], cfg = lastPayload.cfg;
+  result.routes.forEach((rt, ri) => {
+    const col = COLORS[ri % COLORS.length], pts = [];
+    if (lastDepot) pts.push([lastDepot.lat, lastDepot.lon]);
+    rt.stops.forEach(s => pts.push([B[s.id].lat, B[s.id].lon]));
+    if (lastDepot && lastPayload.returnHome) pts.push([lastDepot.lat, lastDepot.lon]);
+    const straight = L.polyline(pts, {color: col, weight: 3, opacity: .6, dashArray: '6 6'}).addTo(lg);
+    roadLine(pts, cfg).then(line => { if (line.length) { lg.removeLayer(straight); L.polyline(line, {color: col, weight: 4, opacity: .85}).addTo(lg); } });
+    rt.stops.forEach((s, k) => {
+      const r = B[s.id]; all.push([r.lat, r.lon]);
+      L.marker([r.lat, r.lon], {icon: L.divIcon({className: '', html: '<span class="pin" style="background:' + col + '">' + (k + 1) + '</span>', iconSize: [26, 26], iconAnchor: [13, 13]})})
+        .bindPopup('<strong>Route ' + (ri + 1) + ', stop ' + (k + 1) + '</strong><br>#' + r.id + ' ' + esc(r.label || '') + '<br>' + esc(r.address) + '<br>' + s.slot + ' · arrive ' + fmt(s.start)).addTo(lg);
+    });
+  });
+  if (lastDepot) { all.push([lastDepot.lat, lastDepot.lon]); L.marker([lastDepot.lat, lastDepot.lon], {icon: L.divIcon({className: '', html: '<span class="pin start">Shop</span>', iconSize: [54, 26], iconAnchor: [27, 13]})}).bindPopup('<strong>Home base</strong><br>' + esc(lastDepot.matched || '')).addTo(lg); }
+  map.invalidateSize();
+  if (all.length) map.fitBounds(all, {padding: [30, 30]});
+}
+
+/* ---------- clear routes & map (jobs stay) ---------- */
+function clearResults() {
+  result = null; lastRows = []; lastDepot = null; lastPayload = null;
+  if (layer) { layer.remove(); layer = null; }
+  $('summary').innerHTML = ''; $('warns').innerHTML = ''; $('routeList').innerHTML = ''; $('matrix').innerHTML = '';
+  $('results').hidden = true; $('empty').hidden = false;
+  setMsg('');
+}
+$('clearRoutes').onclick = clearResults;
+
+/* ---------- copy / csv ---------- */
+function scheduleText() {
+  const B = byId(), L = [];
+  result.routes.forEach((rt, ri) => {
+    L.push('ROUTE ' + (ri + 1) + ' (' + rt.jobs + ' jobs, ' + dur(rt.drive) + ' driving)');
+    if (rt.leave != null) L.push('  ' + fmt(rt.leave) + '  Leave the shop');
+    rt.stops.forEach(s => { const r = B[s.id]; L.push('  ' + fmt(s.start) + '  #' + r.id + ' ' + (r.label ? r.label + ' - ' : '') + r.address + '  [' + s.slot + ']' + (s.late > 0.5 ? '  AFTER 4 PM by ' + Math.round(s.late) + ' min' : '')); });
+    if (rt.back) L.push('  ' + fmt(rt.back.arrive) + '  Back at the shop');
+    L.push('');
+  });
+  return L.join('\n').trim();
+}
+$('copy').onclick = async () => {
+  const t = scheduleText(), b = $('copy');
+  try { await navigator.clipboard.writeText(t); b.textContent = 'Copied'; }
+  catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch (e2) { b.textContent = 'Copy failed'; } ta.remove(); }
+  setTimeout(() => b.textContent = 'Copy schedule', 1600);
+};
+$('csv').onclick = () => {
+  const B = byId(), q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const out = [['Route','Stop','Job #','Label','Address','Slot','Arrive','Drive min from previous'].map(q).join(',')];
+  result.routes.forEach((rt, ri) => rt.stops.forEach((s, k) => { const r = B[s.id]; out.push([ri + 1, k + 1, r.id, r.label, r.address, s.slot, fmt(s.start), Math.round(s.drive)].map(q).join(',')); }));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([out.join('\r\n')], {type: 'text/csv'}));
+  a.download = 'routes.csv'; document.body.appendChild(a); a.click(); a.remove();
+};
+
+async function checkHome() {
+  const el = $('homeStat'), inp = $('start'); el.className = 'hstat'; el.textContent = 'Locating the shop…';
+  const g = await geocode(homeAddr);
+  if (g.ok) {
+    depotGeo = {address: homeAddr, lat: g.lat, lon: g.lon, matched: g.matched};
+    el.className = 'hstat ok'; el.textContent = '✓ ' + g.matched; inp.readOnly = true;
+  } else {
+    depotGeo = null; inp.readOnly = false; // unlock so the address can be corrected right here
+    el.className = 'hstat fail';
+    el.textContent = '✕ ' + (g.error.startsWith('Could not reach') ? g.error + '.' : 'No match for this address.') + ' Edit it above (try Marlboro as the town) or paste coordinates from Google Maps.';
+  }
+}
+$('start').addEventListener('change', () => {
+  const v = $('start').value.trim(); if (!v) return;
+  homeAddr = v; try { localStorage.setItem('njrp.home', v); } catch (e) {}
+  checkHome();
+});
+
+load(); $('start').value = homeAddr; toggleEngine(); renderJobs(); rows.filter(r => r.st === 'pending').forEach(enqueue); checkHome();
+})();
+</script>
+</body>
+</html>
